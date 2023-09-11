@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "translate-dataset"
+version = "0.1.0"
+description = ""
+authors = ["andrecorumba"]
+readme = "README.md"
+packages = [{include = "translate_dataset"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-dotenv = "^1.0.0"
+openai = "^0.28.0"
+langchain = "^0.0.286"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
