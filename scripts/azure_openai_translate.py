@@ -15,25 +15,32 @@ def azure_openai_translate():
     ds = my_load_dataset()
 
     # Itarate over the dataset
+    count_error = 0
     for idx, row in enumerate(tqdm.tqdm(ds)):
         try:
             row['text_eng'] = '\n'.join( translate(s) for s in row['text'].split('\n'))
-            #row['text_eng'] = translate('Olá Mundo!')
-            
-            # create a new json file
-            with open(f'response/{idx:>011}.json', 'w') as f:
-                json.dump(row, f)
+        
         except Exception as e:
             with open('response/error.log', 'a') as f:
                 f.write(f"{idx:>011} - {e}\n{row['text']}\n\n")
             row['text_eng'] = row['text']
+            count_error += 1
             continue
         
-        # Verify if the limit of 3500 requests per minute was reached
-        # if idx % 3500 == 0:
-        #     time.sleep(65)
-        if idx >= 5:
-            break
+        finally:
+            # create a new json file
+            with open(f'response/{idx:>011}.json', 'w') as f:
+                json.dump(row, f)
+        
+            # Verify if the limit of 3500 requests per minute was reached
+            if idx % 3500 == 0:
+                time.sleep(65)
+            # if idx >= 5:
+            #     break
+    
+    # Count errors
+    with open('response/error_count.log', 'w') as f:
+        f.write(f"Total of errors: {count_error}\n")
     
 def my_load_dataset():
     '''Load dataset'''
@@ -63,8 +70,16 @@ def translate(text):
 
     return response.choices[0].message.content
 
+def union_responses():
+    '''Union all json files in one'''
+    ds = datasets.load_dataset('json', data_files='response/*.json', split='train', streaming=False)
+    ds.to_json('response/traducao_teste.json', orient='records')
 
 if __name__ == '__main__':
     print('Starting...')
     azure_openai_translate()
+    print('Done!')
+
+    print('Union responses...')
+    union_responses()
     print('Done!')
