@@ -11,41 +11,51 @@ import time
 
 
 def azure_openai_translate():
+    response_folder = 'response'
+    log_folder = 'log'
+    
     # Load dataset
     ds = my_load_dataset()
 
     # Itarate over the dataset
     count_error = 0
+    idx_start = 0
+
     for idx, row in enumerate(tqdm.tqdm(ds)):
-        try:
-            row['text_eng'] = '\n'.join( translate(s) for s in row['text'].split('\n'))
-        
-        except Exception as e:
-            with open('response/error.log', 'a') as f:
-                f.write(f"{idx:>011} - {e}\n{row['text']}\n\n")
-            row['text_eng'] = row['text']
-            count_error += 1
-            continue
-        
-        finally:
+        if idx >= idx_start:
+            #row['text_eng'] = '\n'.join( translate(s) for s in row['text'].split('\n'))
+            row['text_eng'] = ''
+            for s in row['text'].split('\n'):
+                try: 
+                    row['text_eng'] += translate(s) + '\n'
+
+                except Exception as e:
+                    row['text_eng'] = row['text']
+                    # errors log
+                    with open(os.path.join(log_folder,'error.log'), 'a') as f:
+                        f.write(f"{idx:>011} - {e}\n{s}\n\n")
+                    count_error += 1
+                    break
+            
             # create a new json file
-            with open(f'response/{idx:>011}.json', 'w') as f:
+            with open(os.path.join(response_folder,f'{idx:>011}.json'), 'w') as f:
                 json.dump(row, f)
-        
+
             # Verify if the limit of 3500 requests per minute was reached
             if idx % 3500 == 0:
                 time.sleep(65)
-            # if idx >= 5:
+            # if idx >= 10:
             #     break
-    
+
     # Count errors
-    with open('response/error_count.log', 'w') as f:
+    with open(os.path.join(log_folder,'error_count.log'), 'w') as f:
         f.write(f"Total of errors: {count_error}\n")
     
 def my_load_dataset():
     '''Load dataset'''
+    data_folder = 'data'
     ds = datasets.load_dataset('json',
-                           data_files='/Volumes/DATA/cgu-translate-dataset/data/treinamento_v01_full.json',
+                           data_files=os.path.join(data_folder, 'treinamento_v01_full.json'),
                            split='train',
                            streaming=False)
     return ds
@@ -65,15 +75,20 @@ def translate(text):
         model="gpt-3.5-turbo",
         temperature=1,
         engine='Teste',
-        messages=[{"role": "user", "content": f"Translate to English: {text}"}]
+        messages=[{"role": "user", 
+                   "content": f"Translate to English the text bellow. If there is no text below for you to translate, write a dot. text: {text}"}]
         )
 
     return response.choices[0].message.content
 
 def union_responses():
     '''Union all json files in one'''
-    ds = datasets.load_dataset('json', data_files='response/*.json', split='train', streaming=False)
-    ds.to_json('response/traducao_teste.json', orient='records')
+    response_folder = 'response'
+    ds = datasets.load_dataset('json', 
+                               data_files=os.path.join(response_folder,'*.json'), 
+                               split='train', 
+                               streaming=False)
+    ds.to_json(os.path.join(response_folder,'traducao_teste.json'), orient='records')
 
 if __name__ == '__main__':
     print('Starting...')
