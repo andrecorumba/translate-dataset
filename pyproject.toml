@@ -12,7 +12,10 @@ python-dotenv = "^1.0.0"
 openai = "^0.28.0"
 langchain = "^0.0.286"
 datasets = "^2.14.5"
-
+mkl = "^2023.2.0"
+mkl-include = "^2023.2.0"
+pre-commit = "^3.4.0"
+fairseq2 = "==0.1.*"
 
 [build-system]
 requires = ["poetry-core"]
