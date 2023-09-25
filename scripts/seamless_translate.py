@@ -6,6 +6,8 @@ import json
 import os
 import time
 
+import sys
+
 class SeamlessTranslate():
 
     def __init__(self, 
@@ -16,17 +18,19 @@ class SeamlessTranslate():
         self.device = device
         self.vocoder = vocoder
         self.translator = Translator(model_name, vocoder, torch.device(device), torch.bfloat16)
+        self.ds = None
 
     
     def load_my_dataset(self, dataset_path):
         '''Load dataset'''
-        ds = datasets.load_dataset('json',
+        self.ds = datasets.load_dataset('json',
                             data_files=dataset_path,
                             split='train',
                             streaming=False)
-        return ds
+        return self.ds
     
     def translate_seamlessm4t(self, txt, translator, src_language='por', tgt_language='eng'):
+        '''Translate text using seamlessM4T model'''
         try:
             txt_translate = str(translator.predict(
                 txt,
@@ -45,32 +49,19 @@ class SeamlessTranslate():
     def union_responses(self):
         '''Union all json files in one'''
         response_folder = 'response'
-        ds = datasets.load_dataset('json', 
+        self.ds = datasets.load_dataset('json', 
                                 data_files=os.path.join(response_folder,'*.json'), 
                                 split='train', 
                                 streaming=False)
-        ds.to_json(os.path.join(response_folder,'traducao_teste.json'), orient='records')
+        self.ds.to_json(os.path.join(response_folder,'traducao_teste.json'), orient='records')
 
-def main():
-
-    # Create a instance of SeamlessTranslate and load the model
-    translate = SeamlessTranslate()
-    print(translate.model_name)
-
-    # Load dataset
-    data_folder = 'data'
-    dataset_path = os.path.join(data_folder, 'treinamento_v01_full.json')
-
-    ds = translate.load_my_dataset(dataset_path)
-    print("Dataset loaded.")
-
-
+def worker(translate, idx_start, idx_finish):
     # Itarate over the dataset
     response_folder = 'response'
     log_folder = 'log'
     count_error = 0
-    idx_start = 0
-    for idx, row in enumerate(tqdm.tqdm(ds)):
+
+    for idx, row in enumerate(tqdm.tqdm(translate.ds)):
         if idx >= idx_start:
             row['text_eng'] = ''
             for s in row['text'].split('\n'):
@@ -89,16 +80,42 @@ def main():
             with open(os.path.join(response_folder,f'{idx:>011}.json'), 'w') as f:
                 json.dump(row, f)
 
-            # Verify if the limit of 3500 requests per minute was reached
-            # if idx % 3500 == 0:
-            #     time.sleep(65)
-            if idx >= 3:
+            # If you want to test the script, uncomment the lines below
+            if idx >= idx_finish:
                 break
 
     # Count errors
     with open(os.path.join(log_folder,'error_count.log'), 'w') as f:
         f.write(f"Total of errors: {count_error}\n")
+
+
+
+
+
+def main():
+
+    if len(sys.argv) != 3:
+        print("Uso: python seu_script.py idx_start idx_finish")
+        return
     
+    idx_start = int(sys.argv[1])
+    idx_finish = int(sys.argv[2])
+
+    # Create a instance of SeamlessTranslate and load the model
+    translate = SeamlessTranslate()
+    print(translate.model_name)
+
+    # Load dataset
+    data_folder = 'data'
+    dataset_path = os.path.join(data_folder, 'treinamento_v01_full.json')
+
+    translate.ds = translate.load_my_dataset(dataset_path)
+    print("Dataset loaded.")
+
+    # Run worker
+    worker(translate, idx_start, idx_finish)
+
+    # Union responses
     print('Union responses...')
     translate.union_responses()
     print('Done!')
