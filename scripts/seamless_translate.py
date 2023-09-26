@@ -61,28 +61,31 @@ def worker(translate, idx_start, idx_finish):
     log_folder = 'log'
     count_error = 0
 
-    for idx, row in enumerate(tqdm.tqdm(translate.ds)):
-        if idx >= idx_start:
-            row['text_eng'] = ''
-            for s in row['text'].split('\n'):
-                try: 
-                    row['text_eng'] += translate.translate_seamlessm4t(txt=s, translator=translate.translator) + '\n'
+    for idx, row in enumerate(translate.ds):
+        if idx < idx_start:
+            continue  # Skip rows until idx_start is reached
+        if idx >= idx_finish:
+            break  # Exit the loop if idx_finish is reached
 
-                except Exception as e:
-                    row['text_eng'] = row['text']
-                    # errors log
-                    with open(os.path.join(log_folder,'error.log'), 'a') as f:
-                        f.write(f"{idx:>011} - {e}\n{s}\n\n")
-                    count_error += 1
-                    break
-            
-            # create a new json file
-            with open(os.path.join(response_folder,f'{idx:>011}.json'), 'w') as f:
-                json.dump(row, f)
+        print(f"Processing {idx} to {idx_finish} ...")
+        row['text_eng'] = ''
+        for s in row['text'].split('\n'):
+            try: 
+                row['text_eng'] += translate.translate_seamlessm4t(txt=s, translator=translate.translator) + '\n'
 
-            # If you want to test the script, uncomment the lines below
-            if idx >= idx_finish:
+            except Exception as e:
+                row['text_eng'] = row['text']
+                # errors log
+                with open(os.path.join(log_folder,'error.log'), 'a') as f:
+                    f.write(f"{idx:>011} - {e}\n{s}\n\n")
+                count_error += 1
                 break
+        
+        # create a new json file
+        with open(os.path.join(response_folder,f'{idx:>011}.json'), 'w') as f:
+            json.dump(row, f)
+
+
 
     # Count errors
     with open(os.path.join(log_folder,'error_count.log'), 'w') as f:
@@ -116,9 +119,9 @@ def main():
     worker(translate, idx_start, idx_finish)
 
     # Union responses
-    print('Union responses...')
-    translate.union_responses()
-    print('Done!')
+    # print('Union responses...')
+    # translate.union_responses()
+    # print('Done!')
 
 if __name__ == '__main__':
     main()
